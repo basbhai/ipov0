@@ -16,17 +16,22 @@ export async function GET(request: NextRequest) {
     const githubToken = process.env.GITHUB_TOKEN;
     let githubRepo = process.env.GITHUB_REPOSITORY;
 
+    console.log('[v0] Debug - GITHUB_TOKEN:', githubToken ? 'SET' : 'NOT SET');
+    console.log('[v0] Debug - GITHUB_REPOSITORY:', githubRepo ? 'SET' : 'NOT SET');
+    console.log('[v0] Debug - All env vars:', Object.keys(process.env).filter(k => k.includes('GITHUB')).join(', '));
+
     // In preview mode, these might not be set - provide a helpful message
     if (!githubRepo || !githubToken) {
       const missingVars = [];
       if (!githubRepo) missingVars.push('GITHUB_REPOSITORY');
       if (!githubToken) missingVars.push('GITHUB_TOKEN');
       
-      console.warn('Missing environment variables:', missingVars.join(', '));
+      console.warn('[v0] Missing environment variables:', missingVars.join(', '));
+      console.warn('[v0] Note: Add these to the Vars section in v0 sidebar, not just Vercel project settings');
       return NextResponse.json(
         {
           error: 'GitHub environment variables not configured',
-          details: `Missing: ${missingVars.join(', ')}. Please add these to your Vercel project settings.`,
+          details: `Missing: ${missingVars.join(', ')}. In v0, add these variables using the "Vars" section in the left sidebar.`,
           status: 'ENV_NOT_SET'
         },
         { status: 503 }
