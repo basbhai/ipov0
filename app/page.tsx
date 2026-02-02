@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -20,16 +20,16 @@ export default function Home() {
   const [consentChecked, setConsentChecked] = useState(false);
 
   // CSV Upload handler
-  const handleCsvUpload = (data: Record<string, string>[]) => {
+  const handleCsvUpload = useCallback((data: Record<string, string>[]) => {
     setCsvData(data);
     setError(null);
     setApplyId(null);
-  };
+  }, []);
 
   // Handle CSV data changes (bank column updates)
-  const handleCsvDataChange = (updatedData: Record<string, string>[]) => {
+  const handleCsvDataChange = useCallback((updatedData: Record<string, string>[]) => {
     setCsvData(updatedData);
-  };
+  }, []);
 
   // Download CSV template
   const handleDownloadTemplate = () => {

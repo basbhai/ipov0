@@ -19,28 +19,24 @@ interface CSVTableProps {
 
 export default function CSVTable({ data, onDataChange }: CSVTableProps) {
   const [tableData, setTableData] = useState<Record<string, string>[]>([]);
-  const [bankAutoSelects, setBankAutoSelects] = useState<{ [key: number]: boolean }>({});
 
-  // Initialize table data with bank column
+  // Initialize table data with bank column - only when data changes
   useEffect(() => {
     if (data.length === 0) {
       setTableData([]);
       return;
     }
 
-    const newData = data.map((row, idx) => {
+    const newData = data.map((row) => {
       // Add bank column if it doesn't exist
       if (!row.bank) {
-        // If this is the only row (single account), could auto-select here
-        // But leaving it empty to let user confirm their bank choice
         return { ...row, bank: '' };
       }
       return row;
     });
 
     setTableData(newData);
-    onDataChange?.(newData);
-  }, [data, onDataChange]);
+  }, [data]);
 
   if (tableData.length === 0) {
     return <div className="text-sm text-slate-500 text-center py-4">No data to display</div>;
@@ -68,7 +64,10 @@ export default function CSVTable({ data, onDataChange }: CSVTableProps) {
     const updatedData = [...tableData];
     updatedData[rowIndex] = { ...updatedData[rowIndex], bank };
     setTableData(updatedData);
-    onDataChange?.(updatedData);
+    // Notify parent of changes without creating circular dependencies
+    if (onDataChange) {
+      onDataChange(updatedData);
+    }
   };
 
   return (
