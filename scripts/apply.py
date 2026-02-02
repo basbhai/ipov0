@@ -36,6 +36,40 @@ except ImportError:
     logger.error("Playwright not installed. Run: pip install playwright")
     sys.exit(1)
 
+# ================= FUZZY MATCHING =================
+try:
+    from difflib import SequenceMatcher
+except ImportError:
+    logger.error("difflib not available")
+    sys.exit(1)
+
+
+def fuzzy_match_bank(user_bank: str, available_banks: list, threshold: float = 0.95) -> tuple[str | None, float]:
+    """
+    Fuzzy match user-provided bank name with available options.
+    Returns (matched_bank, confidence_score) or (None, 0) if no match above threshold.
+    """
+    if not user_bank or not user_bank.strip():
+        return None, 0
+    
+    user_bank_lower = user_bank.lower().strip()
+    best_match = None
+    best_score = 0
+    
+    for bank in available_banks:
+        bank_lower = bank.lower().strip()
+        # Calculate similarity score
+        score = SequenceMatcher(None, user_bank_lower, bank_lower).ratio()
+        
+        if score > best_score:
+            best_score = score
+            best_match = bank
+    
+    if best_score >= threshold:
+        return best_match, best_score
+    
+    return None, best_score
+
 
 # ================= LOGOUT =================
 async def handle_logout(page):
@@ -160,7 +194,46 @@ async def process_account(browser, account):
 
         # ---------- FORM STEP 1 ----------
         await page.wait_for_selector("#selectBank", state="visible")
-        await page.select_option("#selectBank", index=1)
+        
+        # Get available bank options from the dropdown
+        bank_options = await page.query_selector_all("#selectBank option")
+        available_banks = []
+        
+        for option in bank_options:
+            text = await option.text_content()
+            value = await option.get_attribute("value")
+            if text and value and value.strip():  # Skip empty/placeholder options
+                available_banks.append((text.strip(), value.strip()))
+        
+        logger.info(f"Available banks: {[b[0] for b in available_banks]}")
+        
+        # Try to match user-provided bank with available options
+        user_bank = account.get("bank", "").strip()
+        selected = False
+        
+        if user_bank:
+            # Extract just the bank names for fuzzy matching
+            bank_names = [b[0] for b in available_banks]
+            matched_bank, score = fuzzy_match_bank(user_bank, bank_names, threshold=0.95)
+            
+            if matched_bank:
+                # Find the corresponding value for this bank
+                matched_value = next((b[1] for b in available_banks if b[0] == matched_bank), None)
+                if matched_value:
+                    logger.info(f"Bank fuzzy matched: {user_bank} -> {matched_bank} (confidence: {score:.2%})")
+                    await page.select_option("#selectBank", matched_value)
+                    selected = True
+            else:
+                logger.warning(f"Bank fuzzy match failed: {user_bank} (best score: {score:.2%})")
+        
+        # Fallback to first available bank if no match or no bank specified
+        if not selected:
+            if len(available_banks) > 0:
+                logger.info(f"Using first available bank: {available_banks[0][0]}")
+                await page.select_option("#selectBank", available_banks[0][1])
+            else:
+                logger.warning("No available banks found")
+                raise Exception("No bank options available in dropdown")
 
         await page.wait_for_selector(
             "#accountNumber option:not([value=''])",
