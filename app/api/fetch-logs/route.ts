@@ -16,13 +16,20 @@ export async function GET(request: NextRequest) {
     const githubToken = process.env.GITHUB_TOKEN;
     let githubRepo = process.env.GITHUB_REPOSITORY;
 
-    console.log(' GITHUB_REPOSITORY env:', githubRepo);
-
-    if (!githubRepo) {
-      console.error(' GITHUB_REPOSITORY not set');
+    // In preview mode, these might not be set - provide a helpful message
+    if (!githubRepo || !githubToken) {
+      const missingVars = [];
+      if (!githubRepo) missingVars.push('GITHUB_REPOSITORY');
+      if (!githubToken) missingVars.push('GITHUB_TOKEN');
+      
+      console.warn('Missing environment variables:', missingVars.join(', '));
       return NextResponse.json(
-        { error: 'GITHUB_REPOSITORY environment variable not configured' },
-        { status: 500 }
+        {
+          error: 'GitHub environment variables not configured',
+          details: `Missing: ${missingVars.join(', ')}. Please add these to your Vercel project settings.`,
+          status: 'ENV_NOT_SET'
+        },
+        { status: 503 }
       );
     }
 
@@ -38,17 +45,8 @@ export async function GET(request: NextRequest) {
 
     const [owner, repo] = repoPath.split('/');
 
-    console.log(' Parsed owner:', owner, 'repo:', repo);
-
-    if (!githubToken) {
-      console.error(' GITHUB_TOKEN not set');
-      return NextResponse.json(
-        { error: 'GitHub token not configured' },
-        { status: 500 }
-      );
-    }
-
-    console.log(' Fetching logs for apply_id:', apply_id);
+    console.log('Parsed owner:', owner, 'repo:', repo);
+    console.log('Fetching logs for apply_id:', apply_id);
 
     // List artifacts to find the one matching apply_id with name filter
     const artifactName = `log-${apply_id}`;

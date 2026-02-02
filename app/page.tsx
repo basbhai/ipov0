@@ -106,14 +106,20 @@ export default function Home() {
         }),
       });
 
+      const result = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to trigger workflow');
+        // Check if it's an environment variable issue
+        if (result.status === 'ENV_NOT_SET') {
+          throw new Error(result.details || 'GitHub configuration required. Please set GITHUB_REPOSITORY and GITHUB_TOKEN in your Vercel project settings.');
+        }
+        throw new Error(result.error || 'Failed to trigger workflow');
       }
 
-      const result = await response.json();
       console.log('Workflow triggered:', result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
       setApplyId(null);
     } finally {
       setIsLoading(false);
