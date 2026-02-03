@@ -44,7 +44,7 @@ except ImportError:
     sys.exit(1)
 
 
-def fuzzy_match_bank(user_bank: str, available_banks: list, threshold: float = 0.80) -> tuple[str | None, float]:
+def fuzzy_match_bank(user_bank: str, available_banks: list, threshold: float = 0.95) -> tuple[str | None, float]:
     """
     Fuzzy match user-provided bank name with available options.
     Returns (matched_bank, confidence_score) or (None, 0) if no match above threshold.
@@ -195,13 +195,6 @@ async def process_account(browser, account):
         # ---------- FORM STEP 1 ----------
         await page.wait_for_selector("#selectBank", state="visible")
         
-        # FIX: Wait for the dropdown options to be populated by Angular 
-        # (Looking for at least 2 options: the placeholder + 1 bank)
-        await page.wait_for_function(
-            "() => document.querySelectorAll('#selectBank option').length > 1",
-            timeout=10000
-        )
-        
         # Get available bank options from the dropdown
         bank_options = await page.query_selector_all("#selectBank option")
         available_banks = []
@@ -221,8 +214,7 @@ async def process_account(browser, account):
         if user_bank:
             # Extract just the bank names for fuzzy matching
             bank_names = [b[0] for b in available_banks]
-            # Lowered threshold to 0.8 for better matching with "LTD." variations
-            matched_bank, score = fuzzy_match_bank(user_bank, bank_names, threshold=0.80)
+            matched_bank, score = fuzzy_match_bank(user_bank, bank_names, threshold=0.95)
             
             if matched_bank:
                 # Find the corresponding value for this bank
@@ -243,11 +235,9 @@ async def process_account(browser, account):
                 logger.warning("No available banks found")
                 raise Exception("No bank options available in dropdown")
 
-        # FIX: Wait for the account number dropdown to populate after bank is selected
         await page.wait_for_selector(
             "#accountNumber option:not([value=''])",
-            state="attached",
-            timeout=5000
+            state="attached"
         )
         await page.select_option("#accountNumber", index=1)
 

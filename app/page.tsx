@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -20,20 +20,60 @@ export default function Home() {
   const [consentChecked, setConsentChecked] = useState(false);
 
   // CSV Upload handler
-  const handleCsvUpload = (data: Record<string, string>[]) => {
+  const handleCsvUpload = useCallback((data: Record<string, string>[]) => {
     setCsvData(data);
     setError(null);
     setApplyId(null);
-  };
+  }, []);
+
+  // Handle CSV data changes (bank column updates)
+  const handleCsvDataChange = useCallback((updatedData: Record<string, string>[]) => {
+    setCsvData(updatedData);
+  }, []);
 
   // Download CSV template
   const handleDownloadTemplate = () => {
-    const template = 'name,dp,username,password,pin,crn,units\nbasanta,13700,73058,password123,1234,12345678,100';
+    const template = 'name,dp,username,password,pin,crn,units,bank\nbasanta,13700,73058,password123,1234,12345678,100,';
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'ipo-template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Download current CSV with updated bank selections
+  const handleDownloadUpdatedCSV = () => {
+    if (csvData.length === 0) {
+      setError('No data to download');
+      return;
+    }
+
+    // Get all columns
+    const columns = Object.keys(csvData[0]);
+    
+    // Create CSV header
+    const header = columns.join(',');
+    
+    // Create CSV rows
+    const rows = csvData.map((row) => {
+      return columns.map((col) => {
+        const value = row[col] || '';
+        // Escape quotes in values
+        if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      }).join(',');
+    });
+
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ipo-data-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -66,14 +106,20 @@ export default function Home() {
         }),
       });
 
+      const result = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to trigger workflow');
+        // Check if it's an environment variable issue
+        if (result.status === 'ENV_NOT_SET') {
+          throw new Error(result.details || 'GitHub configuration required. Please set GITHUB_REPOSITORY and GITHUB_TOKEN in your Vercel project settings.');
+        }
+        throw new Error(result.error || 'Failed to trigger workflow');
       }
 
-      const result = await response.json();
       console.log('Workflow triggered:', result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
       setApplyId(null);
     } finally {
       setIsLoading(false);
@@ -160,11 +206,26 @@ export default function Home() {
             {csvData.length > 0 && (
               <Card className="border-blue-200 shadow-lg">
                 <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100">
-                  <CardTitle className="text-blue-900">CSV Data Preview</CardTitle>
-                  <CardDescription>Showing uploaded data (sensitive columns hidden)</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-blue-900">CSV Data Preview</CardTitle>
+                      <CardDescription>Showing uploaded data (sensitive columns hidden) - Select banks from dropdown</CardDescription>
+                    </div>
+                    {csvData.length > 0 && (
+                      <Button
+                        onClick={handleDownloadUpdatedCSV}
+                        variant="outline"
+                        size="sm"
+                        className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download CSV
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  <CSVTable data={csvData} />
+                  <CSVTable data={csvData} onDataChange={handleCsvDataChange} />
                 </CardContent>
               </Card>
             )}

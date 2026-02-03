@@ -23,13 +23,25 @@ export async function POST(request: NextRequest) {
     const githubToken = process.env.GITHUB_TOKEN;
     let githubRepo = process.env.GITHUB_REPOSITORY;
 
-    console.log('[v0] GITHUB_REPOSITORY env:', githubRepo);
+    console.log('[v0] Debug - GITHUB_TOKEN:', githubToken ? 'SET' : 'NOT SET');
+    console.log('[v0] Debug - GITHUB_REPOSITORY:', githubRepo ? 'SET' : 'NOT SET');
+    console.log('[v0] Debug - All env vars:', Object.keys(process.env).filter(k => k.includes('GITHUB')).join(', '));
 
-    if (!githubRepo) {
-      console.error('[v0] GITHUB_REPOSITORY not set');
+    // In preview mode, these might not be set - provide a helpful message
+    if (!githubRepo || !githubToken) {
+      const missingVars = [];
+      if (!githubRepo) missingVars.push('GITHUB_REPOSITORY');
+      if (!githubToken) missingVars.push('GITHUB_TOKEN');
+      
+      console.warn('[v0] Missing environment variables:', missingVars.join(', '));
+      console.warn('[v0] Note: Add these to the Vars section in v0 sidebar, not just Vercel project settings');
       return NextResponse.json(
-        { error: 'GITHUB_REPOSITORY environment variable not configured' },
-        { status: 500 }
+        {
+          error: 'GitHub environment variables not configured',
+          details: `Missing: ${missingVars.join(', ')}. In v0, add these variables using the "Vars" section in the left sidebar.`,
+          status: 'ENV_NOT_SET'
+        },
+        { status: 503 }
       );
     }
 
@@ -46,14 +58,6 @@ export async function POST(request: NextRequest) {
     const [owner, repo] = repoPath.split('/');
 
     console.log('[v0] Parsed owner:', owner, 'repo:', repo);
-
-    if (!githubToken) {
-      console.error('[v0] GITHUB_TOKEN not set');
-      return NextResponse.json(
-        { error: 'GitHub token not configured' },
-        { status: 500 }
-      );
-    }
 
     // Convert CSV data to JSON string
     const csvDataJson = JSON.stringify(csv_data);
