@@ -35,21 +35,58 @@ export default function CSVUploadForm({ onUpload }: CSVUploadFormProps) {
     for (let i = 1; i < lines.length; i++) {
       if (lines[i].trim() === '') continue;
 
-      const values = lines[i].split(',').map((v) => v.trim());
-      if (values.length !== headers.length) {
-        throw new Error(`Row ${i + 1} has incorrect number of columns`);
+      // Handle CSV parsing with potential quoted values
+      const values = [];
+      let currentValue = '';
+      let insideQuotes = false;
+
+      for (let j = 0; j < lines[i].length; j++) {
+        const char = lines[i][j];
+        const nextChar = lines[i][j + 1];
+
+        if (char === '"') {
+          if (insideQuotes && nextChar === '"') {
+            currentValue += '"';
+            j++;
+          } else {
+            insideQuotes = !insideQuotes;
+          }
+        } else if (char === ',' && !insideQuotes) {
+          values.push(currentValue.trim());
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      values.push(currentValue.trim());
+
+      if (values.length < headers.length) {
+        // Pad missing values (e.g., bank column might be empty)
+        while (values.length < headers.length) {
+          values.push('');
+        }
+      } else if (values.length > headers.length) {
+        throw new Error(`Row ${i + 1} has too many columns`);
       }
 
       const row: Record<string, string> = {};
       headers.forEach((header, index) => {
-        row[header] = values[index];
+        row[header] = values[index] || '';
       });
+      
+      // Ensure bank column exists
+      if (!row.bank) {
+        row.bank = '';
+      }
+      
       data.push(row);
     }
-    //hard limit : max 20 rows
-    if(data.length>20){
-      throw new Error (`Maximum 20 accounts only , found ${data.length}`)
+    
+    // Hard limit: max 20 rows
+    if (data.length > 20) {
+      throw new Error(`Maximum 20 accounts only, found ${data.length}`);
     }
+    
     return data;
   };
 
